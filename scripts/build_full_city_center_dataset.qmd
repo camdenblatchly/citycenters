@@ -1,0 +1,201 @@
+---
+title: "build_full_city_center_dataset"
+format: html
+editor: visual
+---
+
+```{r}
+
+library(dplyr)
+library(tidyr)
+library(here)
+library(sf)
+library(readr)
+library(ggplot2)
+library(ggspatial)
+library(leaflet)
+library(centr)
+
+i_am("scripts/build_full_city_center_dataset.qmd")
+
+```
+
+```{r}
+
+dta_raw <- readxl::read_excel(
+  here("data/geocode_comparison_v5.xlsx"),
+  sheet = "copy_of_merged_data2"
+)
+
+```
+
+```{r}
+
+dta_clean <- dta_raw %>%
+  rename(arcgis_lon = arcgis_long) %>%
+  pivot_longer(
+    cols = ends_with("lat"),
+    names_to = "definition_lat",
+    values_to = "lat"
+  ) %>%
+  pivot_longer(
+    cols = ends_with("lon"),
+    names_to = "definition_lon",
+    values_to = "lon"
+  ) %>%
+  mutate(
+    # Lon cleaning
+    definition_lon = stringr::str_replace_all(definition_lon, "Lon", ""),
+    definition_lon = stringr::str_replace_all(definition_lon, "lon", ""),
+    # Lat cleaning
+    definition_lat = stringr::str_replace_all(definition_lat, "Lat", ""),
+    definition_lat = stringr::str_replace_all(definition_lat, "lat", "")
+  ) %>%
+  # The second pivot longer makes excess rows, remove them
+  # by filtering to only matching definitions
+  filter(definition_lon == definition_lat) %>%
+  mutate(
+    definition = case_when(
+      definition_lon == "GoogleEarth" ~ "Google Earth",
+      definition_lon == "CityHall" ~ "City Hall",
+      definition_lon == "Gaz" ~ "Gazetteer",
+      definition_lon == "Cen82" ~ "Central Business District",
+      definition_lon == "arcgis_" ~ "ArcGIS",
+      TRUE ~ definition_lon
+    )
+  )
+
+```
+
+## Calculate population and "job" centers for the top 100 MSAs
+
+```{r}
+
+top50_simple <- dta_clean %>%
+  select(CBSA_name, CBSA_code, PrincipleCity, PrincipleCityStateFIPS, `unique place code`, Pop10) %>%
+  distinct() %>%
+  slice_max(order_by = Pop10, n = 50)
+
+top50_cbsa_codes <- top50_simple %>%
+  pull(CBSA_code)
+
+top50 <- dta_clean %>%
+  filter(CBSA_code %in% top50_cbsa_codes)
+
+```
+
+```{r}
+
+# source(here("scripts/utils.R"))
+
+acs_vars <- c(
+  "short_commute" = "B08134_002"
+)
+
+i <- 3
+
+# for (i in 1:nrow(top50_simple)) {
+#   
+#   if (i > 5) {
+#     break
+#   }
+  
+  print(top50_simple$CBSA_name[i])
+  
+  principle_geoid_st <- top50_simple$PrincipleCityStateFIPS[i]
+
+  acs_raw <- tidycensus::get_acs(
+    "block group",
+    variables = acs_vars,
+    year = 2019,
+    state = principle_geoid_st,
+    summary_var = "B01001_001"
+    ) %>%
+    select(-c(NAME, moe, summary_moe)) %>%
+    rename(
+      tot_pop = summary_est,
+      short_commute_pop = estimate
+    )
+  
+  state_bg <- tigris::block_groups(state = principle_geoid_st, cb = TRUE, year = 2019)
+  
+  place_geo <- tigris::places(state = principle_geoid_st) %>%
+    filter(GEOID == top50_simple$`unique place code`[i])
+  
+  place_bg <- state_bg %>%
+    filter(st_intersects(., place_geo, sparse = FALSE) %>% apply(1, any))
+  
+  place_dta <- left_join(
+    place_bg,
+    acs_raw,
+    by = "GEOID"
+  ) %>%
+  # Remove water only block groups and ones without people
+  filter(ALAND > 0) %>%
+  filter(tot_pop > 0) %>%
+  mutate(
+    pct_with_short_commute = short_commute_pop / tot_pop,
+    pop_density = tot_pop / ALAND
+  ) %>%
+  # Get the th and above most dense block groups
+  filter(pop_density >= quantile(pop_density, .8, na.rm = TRUE)) %>%
+  # calculate Block Group Lat Lon
+  mutate(
+    centroid = st_centroid(geometry)
+  ) %>%
+  mutate(
+    lon = st_coordinates(centroid)[, 1],
+    lat = st_coordinates(centroid)[, 2]
+  ) %>%
+  st_as_sf() %>%
+  st_transform(crs = 4326) 
+  
+  pop_weighted_center <- place_dta %>%
+    filter(tot_pop > 0) %>%
+    mean_center(
+      group = c("variable"),
+      weight = "pop_density"
+    )
+  
+  short_commute_center <- place_dta %>%
+    filter(short_commute_pop > 0) %>%
+    mean_center(
+      group = c("variable"),
+      weight = "pct_with_short_commute"
+    )
+  
+# }
+
+
+```
+
+```{r}
+
+leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%  # nice clean basemap
+  addPolygons(
+    data = place_dta,
+    fillColor = "blue",
+    fillOpacity = 0.5,
+    color = "black",
+    weight = 1,
+    popup = ~GEOID
+  )
+
+```
+
+```{r}
+
+leaflet(data = pop_weighted_center) %>%
+  addProviderTiles(providers$OpenStreetMap) %>%  # Similar to cartolight
+  addCircleMarkers(
+    radius = 6,
+    color = "red",
+    stroke = FALSE,
+    fillOpacity = 0.8
+  ) %>%
+  addScaleBar(position = "bottomleft") %>%
+  addLegend("bottomright", colors = "red", labels = "City Center") %>%
+  addControl("<strong>City Centers</strong>", position = "topright")
+
+```

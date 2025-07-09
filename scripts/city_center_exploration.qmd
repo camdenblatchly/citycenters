@@ -210,7 +210,7 @@ save_plot(fig, here("export/LA_map_demo.png"))
 ```
 
 
-## After this, calculate jobs and population centers using ACS
+## Calculate jobs and population centers using ACS
 
 Note: this could be pretty hard for all metros (because it will use blocks or
 block groups)
