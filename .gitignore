@@ -49,7 +49,7 @@ vignettes/*.pdf
 *.rds
 *.Rds
 
-# IDE files 
+# IDE files
 .DS_Store
 .idea
 
@@ -70,3 +70,5 @@ export/*
 # IPython
 profile_default/
 ipython_config.py
+
+rosm.cache/
