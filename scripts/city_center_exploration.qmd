@@ -1,0 +1,333 @@
+---
+title: "city_center_exploration"
+format: html
+editor: visual
+---
+
+```{r}
+
+library(dplyr)
+library(tidyr)
+library(here)
+library(sf)
+library(readr)
+library(ggplot2)
+library(ggspatial)
+library(cori.charts)
+library(leaflet)
+library(centr)
+
+sysfonts::font_add_google("Lato")
+showtext::showtext_auto()
+showtext::showtext_opts(dpi = 300)
+
+i_am("scripts/city_center_exploration.qmd")
+
+```
+
+
+```{r}
+
+dta_raw <- readxl::read_excel(
+  here("data/geocode_comparison_v5.xlsx"),
+  sheet = "copy_of_merged_data2"
+)
+
+```
+
+
+```{r}
+
+dta_clean <- dta_raw %>%
+  rename(arcgis_lon = arcgis_long) %>%
+  pivot_longer(
+    cols = ends_with("lat"),
+    names_to = "definition_lat",
+    values_to = "lat"
+  ) %>%
+  pivot_longer(
+    cols = ends_with("lon"),
+    names_to = "definition_lon",
+    values_to = "lon"
+  ) %>%
+  mutate(
+    # Lon cleaning
+    definition_lon = stringr::str_replace_all(definition_lon, "Lon", ""),
+    definition_lon = stringr::str_replace_all(definition_lon, "lon", ""),
+    # Lat cleaning
+    definition_lat = stringr::str_replace_all(definition_lat, "Lat", ""),
+    definition_lat = stringr::str_replace_all(definition_lat, "lat", "")
+  ) %>%
+  filter(definition_lon == definition_lat) %>%
+  mutate(
+    definition = case_when(
+      definition_lon == "GoogleEarth" ~ "Google Earth",
+      definition_lon == "CityHall" ~ "City Hall",
+      definition_lon == "Gaz" ~ "Gazetteer",
+      definition_lon == "Cen82" ~ "Central Business District",
+      definition_lon == "arcgis_" ~ "ArcGIS",
+      TRUE ~ definition_lon
+    )
+  ) %>%
+  filter(definition != "Gazetteer")
+
+```
+
+
+## Let's prototype maps for Boston, NYC, etc
+
+```{r}
+
+map_dta <- dta_clean %>%
+  filter(`CBSA_code` == "14460") %>%
+  sf::st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
+  sf::st_transform(3857)
+
+bbox <- map_dta %>% sf::st_bbox()
+final_bbox <- fit_bbox_to_aspect_ratio(bbox)
+
+fig <- map_dta %>%
+  ggplot() +
+  annotation_map_tile(type = "cartolight", zoom = 16) +
+  # geom_point(aes(x = lon, y = lat, color = definition), size = 3) +
+  geom_sf(size = 4, aes(color = definition)) +
+  coord_sf(
+    crs = st_crs(3857),
+    xlim = c(final_bbox["xmin"], final_bbox["xmax"]),
+    ylim = c(final_bbox["ymin"], final_bbox["ymax"]),
+    expand = TRUE
+  ) +
+  theme_cori_map() +
+  labs(
+    title = "City Centers for Boston, MA",
+    x = "Longitude",
+    y = "Latitude",
+    color = "Definition Source"
+  )
+
+save_plot(fig, here("export/boston_map_demo.png"))
+
+```
+
+```{r}
+
+map_dta <- dta_clean %>%
+  filter(`CBSA_code` == "35620") %>%
+  sf::st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
+  sf::st_transform(3857)
+
+bbox <- map_dta %>% sf::st_bbox()
+final_bbox <- fit_bbox_to_aspect_ratio(bbox)
+
+fig <- map_dta %>%
+  ggplot() +
+  annotation_map_tile(type = "cartolight", zoom = 13) +
+  # geom_point(aes(x = lon, y = lat, color = definition), size = 3) +
+  geom_sf(size = 4, aes(color = definition)) +
+  coord_sf(
+    crs = st_crs(3857),
+    xlim = c(final_bbox["xmin"], final_bbox["xmax"]),
+    ylim = c(final_bbox["ymin"], final_bbox["ymax"]),
+    expand = TRUE
+  ) +
+  theme_cori_map() +
+  labs(
+    title = "City Centers for NYC",
+    x = "Longitude",
+    y = "Latitude",
+    color = "Definition Source"
+  )
+
+save_plot(fig, here("export/nyc_map_demo.png"))
+
+```
+
+
+```{r}
+
+map_dta <- dta_clean %>%
+  filter(`CBSA_code` == "47900") %>%
+  sf::st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
+  sf::st_transform(3857)
+
+bbox <- map_dta %>% sf::st_bbox()
+final_bbox <- fit_bbox_to_aspect_ratio(bbox)
+
+fig <- map_dta %>%
+  ggplot() +
+  annotation_map_tile(type = "cartolight", zoom = 16) +
+  # geom_point(aes(x = lon, y = lat, color = definition), size = 3) +
+  geom_sf(size = 4, aes(color = definition)) +
+  coord_sf(
+    crs = st_crs(3857),
+    xlim = c(final_bbox["xmin"], final_bbox["xmax"]),
+    ylim = c(final_bbox["ymin"], final_bbox["ymax"]),
+    expand = TRUE
+  ) +
+  theme_cori_map() +
+  labs(
+    title = "City Centers for DC",
+    x = "Longitude",
+    y = "Latitude",
+    color = "Definition Source"
+  )
+
+save_plot(fig, here("export/dc_map_demo.png"))
+
+```
+
+```{r}
+
+map_dta <- dta_clean %>%
+  filter(`CBSA_code` == "31100") %>%
+  sf::st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
+  sf::st_transform(3857)
+
+bbox <- map_dta %>% sf::st_bbox()
+final_bbox <- fit_bbox_to_aspect_ratio(bbox)
+
+fig <- map_dta %>%
+  ggplot() +
+  annotation_map_tile(type = "cartolight", zoom = 16) +
+  # geom_point(aes(x = lon, y = lat, color = definition), size = 3) +
+  geom_sf(size = 4, aes(color = definition)) +
+  coord_sf(
+    crs = st_crs(3857),
+    xlim = c(final_bbox["xmin"], final_bbox["xmax"]),
+    ylim = c(final_bbox["ymin"], final_bbox["ymax"]),
+    expand = TRUE
+  ) +
+  theme_cori_map() +
+  labs(
+    title = "City Centers for LA",
+    x = "Longitude",
+    y = "Latitude",
+    color = "Definition Source"
+  )
+
+save_plot(fig, here("export/LA_map_demo.png"))
+
+```
+
+
+## After this, calculate jobs and population centers using ACS
+
+Note: this could be pretty hard for all metros (because it will use blocks or
+block groups)
+
+Let's try for Boston
+
+```{r}
+
+# v23 <- tidycensus::load_variables(2023, dataset = "acs5")
+
+# SF4 not available for 2020 or 2010
+# v00 <- tidycensus::load_variables(2000, dataset = "sf4")
+
+acs_vars <- c(
+  "tot_pop" = "B01001_001",
+  "short_commute" = "B08134_002"
+)
+
+acs_raw <- tidycensus::get_acs(
+  "block group",
+  variables = acs_vars,
+  year = 2019,
+  state = "25",
+  county = c("025"),
+  summary_var = "B01001_001"
+)
+
+```
+
+
+```{r}
+
+boston_bg <- tigris::block_groups(
+  state = "25",
+  county = "025",
+  cb = TRUE,
+  year = 2019
+)
+
+```
+
+
+```{r}
+
+boston_dta <- left_join(
+    acs_raw,
+    boston_bg,
+    by = "GEOID"
+  ) %>%
+  # Pct with short commute 
+  mutate(
+    pct_with_short_commute = estimate / summary_est
+  ) %>%
+  # calculate Block Group Lat Lon
+  mutate(
+    centroid = st_centroid(geometry)
+  ) %>%
+  mutate(
+    lon = st_coordinates(centroid)[, 1],
+    lat = st_coordinates(centroid)[, 2]
+  ) %>%
+  st_as_sf() %>%
+  st_transform(crs = 4326) 
+
+```
+
+
+```{r}
+
+pop_weighted_center <- boston_dta %>%
+  filter(variable == "tot_pop") %>%
+  filter(estimate > 0) %>%
+  filter(ALAND > 0) %>%
+  mutate(
+    pop_density = estimate / ALAND
+  ) %>%
+  mean_center(
+    group = c("variable"),
+    weight = "pop_density"
+  )
+
+leaflet(data = pop_weighted_center) %>%
+  addProviderTiles(providers$OpenStreetMap) %>%  # Similar to cartolight
+  addCircleMarkers(
+    radius = 6,
+    color = "red",
+    stroke = FALSE,
+    fillOpacity = 0.8
+  ) %>%
+  addScaleBar(position = "bottomleft") %>%
+  addLegend("bottomright", colors = "red", labels = "City Center") %>%
+  addControl("<strong>City Centers</strong>", position = "topright")
+
+
+```
+
+```{r}
+
+short_commute_center <- boston_dta %>%
+  filter(variable == "short_commute") %>%
+  filter(estimate > 0) %>%
+  filter(ALAND > 0) %>%
+  mean_center(
+    group = c("variable"),
+    weight = "pct_with_short_commute"
+  )
+
+leaflet(data = short_commute_center) %>%
+  addProviderTiles(providers$OpenStreetMap) %>%  # Similar to cartolight
+  addCircleMarkers(
+    radius = 6,
+    color = "red",
+    stroke = FALSE,
+    fillOpacity = 0.8
+  ) %>%
+  addScaleBar(position = "bottomleft") %>%
+  addLegend("bottomright", colors = "red", labels = "City Center") %>%
+  addControl("<strong>City Centers</strong>", position = "topright")
+
+```
