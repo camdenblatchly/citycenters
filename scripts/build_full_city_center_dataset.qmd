@@ -29,6 +29,7 @@ dta_raw <- readxl::read_excel(
 
 ```
 
+
 ```{r}
 
 dta_clean <- dta_raw %>%
@@ -69,7 +70,7 @@ dta_clean <- dta_raw %>%
 
 ```
 
-## Calculate population and "job" centers for the top 100 MSAs
+## Calculate population centers for the top 30 MSAs
 
 ```{r}
 
@@ -95,18 +96,15 @@ dta_complete <- dta_clean %>%
 
 for (i in 1:nrow(top_us_cities_simple)) {
   
-  if (i > 10) {
-    break
-  }
+  print(paste("Calculating for", top_us_cities_simple$PrincipleCity))
   
-  pop_weighted_center <- get_densest_tract(
+  pop_weighted_center <- get_pop_centers(
     top_us_cities_simple$PrincipleCityStateFIPS[i],
     top_us_cities_simple$geoid_pl[i]
   )
   
-  print(glimpse(pop_weighted_center))
-  
   pop_center_row <- dta_clean %>%
+    # Take an existing row and overwrite it
     filter(CBSA_code == top_us_cities_simple$CBSA_code[i]) %>%
     filter(definition == "Google Earth") %>%
     mutate(
@@ -123,7 +121,7 @@ for (i in 1:nrow(top_us_cities_simple)) {
   
 }
 
-# readr::write_csv(dta_complete, here("data/city_centers_tidy.csv"))
+readr::write_csv(dta_complete, here("data/city_centers_tidy.csv"))
 
 ```
 
@@ -132,7 +130,7 @@ for (i in 1:nrow(top_us_cities_simple)) {
 ```{r}
 
 dta_complete %>%
-  filter(PrincipleCity == "Dallas city") %>%
+  filter(PrincipleCity == "Charlotte city") %>%
   filter(definition == "Population center") %>%
   leaflet() %>%
   addProviderTiles(providers$OpenStreetMap) %>%  # Similar to cartolight

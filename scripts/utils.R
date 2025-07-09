@@ -2,7 +2,7 @@ acs_vars <- c(
   "short_commute" = "B08134_002"
 )
 
-get_pop_job_centers <- function(principle_geoid_st, geoid_pl) {
+get_pop_centers <- function(principle_geoid_st, geoid_pl) {
 
   acs_raw <- tidycensus::get_acs(
     "block group",

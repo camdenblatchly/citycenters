@@ -1,0 +1,36 @@
+---
+title: "building_heights"
+format: html
+editor: visual
+---
+
+```{r}
+
+library(sf)
+library(dplyr)
+library(here)
+
+i_am("scripts/building_heights.qmd")
+
+```
+
+
+```{r, eval=FALSE}
+
+# Downloaded from here: https://www.sciencebase.gov/catalog/item/5775469ce4b07dd077c7088a
+gdb_data <- st_read(
+  here("data/srtm_derived_building_heights_by_block_group_conterminous_US/srtm_bg_building_heights.gdb"),
+  layer = "srtm_bldg_heights_class"
+)
+
+building_heights <- gdb_data %>%
+  sf::st_drop_geometry() %>%
+  select(-c(AREALAND, AREAWATR, Shape_Length, Shape_Area, SUM)) %>%
+  rename(
+    geoid_bg = AREAKEY
+  ) %>%
+  distinct()
+
+readr::write_csv(building_heights, here("data/building_heights.csv"))
+
+```
