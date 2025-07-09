@@ -29,7 +29,6 @@ dta_raw <- readxl::read_excel(
 
 ```
 
-
 ```{r}
 
 dta_clean <- dta_raw %>%
@@ -87,22 +86,33 @@ top_us_cities <- dta_clean %>%
 
 ```
 
+
+```{r}
+
+building_heights_dta <- readr::read_csv(here("data/building_heights.csv"))
+
+```
+
+
 ```{r}
 
 source(here("scripts/utils.R"))
 
-dta_complete <- dta_clean %>%
-  slice_max(order_by = Pop10, n = 30)
+dta_complete <- top_us_cities
 
 for (i in 1:nrow(top_us_cities_simple)) {
   
-  print(paste("Calculating for", top_us_cities_simple$PrincipleCity))
+  print(paste("Calculating for", top_us_cities_simple$PrincipleCity[i]))
   
-  pop_weighted_center <- get_pop_centers(
+  if (i > 2) {
+    break
+  }
+  
+  pop_weighted_center <- get_pop_center(
     top_us_cities_simple$PrincipleCityStateFIPS[i],
     top_us_cities_simple$geoid_pl[i]
   )
-  
+
   pop_center_row <- dta_clean %>%
     # Take an existing row and overwrite it
     filter(CBSA_code == top_us_cities_simple$CBSA_code[i]) %>%
@@ -116,8 +126,36 @@ for (i in 1:nrow(top_us_cities_simple)) {
       lat = pop_weighted_center %>% pull(lat) %>% nth(1),
       lon = pop_weighted_center %>% pull(lon) %>% nth(1)
     )
+
+  height_center <- get_height_center(
+    building_heights_dta,
+    top_us_cities_simple$PrincipleCityStateFIPS[i],
+    top_us_cities_simple$geoid_pl[i]
+  )
+
+  height_center_row <- dta_clean %>%
+    # Take an existing row and overwrite it
+    filter(CBSA_code == top_us_cities_simple$CBSA_code[i]) %>%
+    filter(definition == "Google Earth") %>%
+    mutate(
+      # Update definition name
+      definition_lat = "Building height center",
+      definition_lon = "Building height center",
+      definition = "Building height center",
+      # Update lat and lon values
+      lat = height_center %>% pull(lat) %>% nth(1),
+      lon = height_center %>% pull(lon) %>% nth(1)
+    )
   
-  dta_complete <- bind_rows(dta_complete, pop_center_row)
+  ## Combine them all together!
+  dta_complete <- bind_rows(
+    dta_complete,
+    pop_center_row
+    ) %>%
+    bind_rows(
+      .,
+      height_center_row
+    )
   
 }
 
@@ -126,11 +164,10 @@ readr::write_csv(dta_complete, here("data/city_centers_tidy.csv"))
 ```
 
 
-
-```{r}
+```{r, eval=FALSE}
 
 dta_complete %>%
-  filter(PrincipleCity == "Charlotte city") %>%
+  filter(PrincipleCity == "New York city") %>%
   filter(definition == "Population center") %>%
   leaflet() %>%
   addProviderTiles(providers$OpenStreetMap) %>%  # Similar to cartolight

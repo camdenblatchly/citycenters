@@ -2,7 +2,7 @@ acs_vars <- c(
   "short_commute" = "B08134_002"
 )
 
-get_pop_centers <- function(principle_geoid_st, geoid_pl) {
+get_pop_center <- function(principle_geoid_st, geoid_pl) {
 
   acs_raw <- tidycensus::get_acs(
     "block group",
@@ -17,13 +17,19 @@ get_pop_centers <- function(principle_geoid_st, geoid_pl) {
     short_commute_pop = estimate
   )
 
-  state_bg <- tigris::block_groups(state = principle_geoid_st, cb = TRUE, year = 2019)
+  state_bg <- tigris::block_groups(state = principle_geoid_st, cb = TRUE, year = 2019) %>%
+    st_transform(crs = 5070)
 
   place_geo <- tigris::places(state = principle_geoid_st) %>%
-    filter(GEOID == geoid_pl)
+    filter(GEOID == geoid_pl) %>%
+    st_transform(crs = 5070)
 
   place_bg <- state_bg %>%
-    filter(st_intersects(., place_geo, sparse = FALSE) %>% apply(1, any))
+    filter(st_intersects(., place_geo, sparse = FALSE) %>% apply(1, any)) %>%
+    tigris::erase_water(year = 2019) %>%
+    mutate(
+      geometry = sf::st_make_valid(geometry)
+    )
 
   place_dta <- left_join(
     place_bg,
@@ -40,14 +46,14 @@ get_pop_centers <- function(principle_geoid_st, geoid_pl) {
     ) %>%
     # calculate Block Group Lat Lon
     mutate(
-      centroid = st_centroid(geometry)
+      centroid = st_point_on_surface(geometry)
     ) %>%
+    st_transform(crs = 4326) %>%
     mutate(
       lon = st_coordinates(centroid)[, 1],
       lat = st_coordinates(centroid)[, 2]
     ) %>%
-    st_as_sf() %>%
-    st_transform(crs = 4326)
+    st_as_sf()
 
   pop_weighted_center <- place_dta %>%
     # Get the top quintile of population dense block groups
@@ -65,56 +71,45 @@ get_pop_centers <- function(principle_geoid_st, geoid_pl) {
 
 }
 
-get_densest_tract <- function(principle_geoid_st, geoid_pl) {
+get_height_center <- function(building_heights, principle_geoid_st, geoid_pl) {
 
-  acs_raw <- tidycensus::get_acs(
-    "tract",
-    variables = acs_vars,
-    year = 2019,
-    state = principle_geoid_st,
-    summary_var = "B01001_001"
-  ) %>%
-    select(-c(NAME, moe, summary_moe)) %>%
-    rename(
-      tot_pop = summary_est,
-      short_commute_pop = estimate
-    )
-
-  state_tracts <- tigris::tracts(state = principle_geoid_st, cb = TRUE, year = 2019)
+  state_bg <- tigris::block_groups(state = principle_geoid_st, cb = TRUE, year = 2019) %>%
+    st_transform(crs = 5070)
 
   place_geo <- tigris::places(state = principle_geoid_st) %>%
-    filter(GEOID == geoid_pl)
+    filter(GEOID == geoid_pl) %>%
+    st_transform(crs = 5070)
 
-  place_tracts <- state_tracts %>%
-    filter(st_intersects(., place_geo, sparse = FALSE) %>% apply(1, any))
-
-  place_dta <- left_join(
-    place_tracts,
-    acs_raw,
-    by = "GEOID"
-  ) %>%
-    # Remove water only tracts and ones without people
+  place_bg <- state_bg %>%
+    filter(st_intersects(., place_geo, sparse = FALSE) %>% apply(1, any)) %>%
     filter(ALAND > 0) %>%
-    # Minimum population size for block group
-    filter(tot_pop > 100) %>%
+    tigris::erase_water(year = 2019, area_threshold = .75) %>%
     mutate(
-      pct_with_short_commute = short_commute_pop / tot_pop,
-      pop_density = tot_pop / ALAND
+      geometry = sf::st_make_valid(geometry)
+    )
+
+  place_bg_geoids <- place_bg %>%
+    pull(GEOID) %>%
+    unique()
+
+  tallest_bg <- building_heights %>%
+    filter(geoid_bg %in% place_bg_geoids) %>%
+    slice_max(order_by = SEPH, n = 1) %>%
+    left_join(
+      .,
+      place_bg,
+      by = c("geoid_bg" = "GEOID")
     ) %>%
-    # Only bigger pop tracts
-    filter(tot_pop >= quantile(tot_pop, .2, na.rm = TRUE)) %>%
-    # calculate Block Group Lat Lon
+    sf::st_as_sf() %>%
+    st_transform(crs = 4326) %>%
     mutate(
       centroid = st_centroid(geometry)
     ) %>%
     mutate(
       lon = st_coordinates(centroid)[, 1],
       lat = st_coordinates(centroid)[, 2]
-    ) %>%
-    st_as_sf() %>%
-    st_transform(crs = 4326) %>%
-    slice_max(order_by = pop_density, n = 1)
+    )
 
-  return(place_dta)
+  return(tallest_bg)
 
 }
