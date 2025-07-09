@@ -62,7 +62,9 @@ dta_clean <- dta_raw %>%
       definition_lon == "Cen82" ~ "Central Business District",
       definition_lon == "arcgis_" ~ "ArcGIS",
       TRUE ~ definition_lon
-    )
+    ),
+    # Clean up place geoid
+    geoid_pl = stringr::str_pad(`unique place code`, 7, side = "left", pad = "0")
   )
 
 ```
@@ -72,7 +74,7 @@ dta_clean <- dta_raw %>%
 ```{r}
 
 top50_simple <- dta_clean %>%
-  select(CBSA_name, CBSA_code, PrincipleCity, PrincipleCityStateFIPS, `unique place code`, Pop10) %>%
+  select(CBSA_name, CBSA_code, PrincipleCity, PrincipleCityStateFIPS, geoid_pl, Pop10) %>%
   distinct() %>%
   slice_max(order_by = Pop10, n = 50)
 
@@ -92,7 +94,7 @@ acs_vars <- c(
   "short_commute" = "B08134_002"
 )
 
-i <- 3
+i <- 21
 
 # for (i in 1:nrow(top50_simple)) {
 #   
@@ -120,7 +122,7 @@ i <- 3
   state_bg <- tigris::block_groups(state = principle_geoid_st, cb = TRUE, year = 2019)
   
   place_geo <- tigris::places(state = principle_geoid_st) %>%
-    filter(GEOID == top50_simple$`unique place code`[i])
+    filter(GEOID == top50_simple$geoid_pl[i])
   
   place_bg <- state_bg %>%
     filter(st_intersects(., place_geo, sparse = FALSE) %>% apply(1, any))
@@ -132,13 +134,14 @@ i <- 3
   ) %>%
   # Remove water only block groups and ones without people
   filter(ALAND > 0) %>%
-  filter(tot_pop > 0) %>%
+  filter(tot_pop > 50) %>%
   mutate(
     pct_with_short_commute = short_commute_pop / tot_pop,
     pop_density = tot_pop / ALAND
   ) %>%
-  # Get the th and above most dense block groups
-  filter(pop_density >= quantile(pop_density, .8, na.rm = TRUE)) %>%
+  # Get shortest commute top quintile of block groups
+  filter(short_commute_pop >= quantile(short_commute_pop, .8, na.rm = TRUE)) %>%
+  filter(short_commute_pop >= quantile(pct_with_short_commute, .8, na.rm = TRUE)) %>%
   # calculate Block Group Lat Lon
   mutate(
     centroid = st_centroid(geometry)
@@ -151,14 +154,15 @@ i <- 3
   st_transform(crs = 4326) 
   
   pop_weighted_center <- place_dta %>%
-    filter(tot_pop > 0) %>%
+    # Get the top quintile of population dense block groups
+    # filter(pop_density >= quantile(pop_density, .8, na.rm = TRUE)) %>%
     mean_center(
       group = c("variable"),
       weight = "pop_density"
     )
   
   short_commute_center <- place_dta %>%
-    filter(short_commute_pop > 0) %>%
+    filter(short_commute_pop > 10) %>%
     mean_center(
       group = c("variable"),
       weight = "pct_with_short_commute"
@@ -169,15 +173,19 @@ i <- 3
 
 ```
 
+
 ```{r}
 
+pal <- colorQuantile("YlOrRd", domain = place_dta$pct_with_short_commute, n = 5)
+
 leaflet() %>%
-  addProviderTiles("CartoDB.Positron") %>%  # nice clean basemap
+  addProviderTiles("OpenStreetMap") %>%  # nice clean basemap
   addPolygons(
     data = place_dta,
-    fillColor = "blue",
+    fillColor = ~pal(pct_with_short_commute),
     fillOpacity = 0.5,
-    color = "black",
+    color = "#d0d2ce",
+    stroke = NULL,
     weight = 1,
     popup = ~GEOID
   )
@@ -186,7 +194,7 @@ leaflet() %>%
 
 ```{r}
 
-leaflet(data = pop_weighted_center) %>%
+leaflet(data = short_commute_center) %>%
   addProviderTiles(providers$OpenStreetMap) %>%  # Similar to cartolight
   addCircleMarkers(
     radius = 6,
