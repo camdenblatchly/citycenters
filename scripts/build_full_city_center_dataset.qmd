@@ -73,16 +73,16 @@ dta_clean <- dta_raw %>%
 
 ```{r}
 
-top50_simple <- dta_clean %>%
+top_us_cities_simple <- dta_clean %>%
   select(CBSA_name, CBSA_code, PrincipleCity, PrincipleCityStateFIPS, geoid_pl, Pop10) %>%
   distinct() %>%
-  slice_max(order_by = Pop10, n = 50)
+  slice_max(order_by = Pop10, n = 30)
 
-top50_cbsa_codes <- top50_simple %>%
+top_us_cities_cbsa_codes <- top_us_cities_simple %>%
   pull(CBSA_code)
 
-top50 <- dta_clean %>%
-  filter(CBSA_code %in% top50_cbsa_codes)
+top_us_cities <- dta_clean %>%
+  filter(CBSA_code %in% top_us_cities_cbsa_codes)
 
 ```
 
@@ -90,55 +90,55 @@ top50 <- dta_clean %>%
 
 source(here("scripts/utils.R"))
 
-acs_vars <- c(
-  "short_commute" = "B08134_002"
-)
+dta_complete <- dta_clean %>%
+  slice_max(order_by = Pop10, n = 30)
 
-i <- 44
-
-# for (i in 1:nrow(top50_simple)) {
-#   
-#   if (i > 5) {
-#     break
-#   }
+for (i in 1:nrow(top_us_cities_simple)) {
   
-  print(top50_simple$CBSA_name[i])
+  if (i > 10) {
+    break
+  }
   
-  pop_weighted_center <- get_pop_job_centers(
-    top50_simple$PrincipleCityStateFIPS[i],
-    top50_simple$geoid_pl[i]
+  pop_weighted_center <- get_densest_tract(
+    top_us_cities_simple$PrincipleCityStateFIPS[i],
+    top_us_cities_simple$geoid_pl[i]
   )
-
   
-# }
+  print(glimpse(pop_weighted_center))
+  
+  pop_center_row <- dta_clean %>%
+    filter(CBSA_code == top_us_cities_simple$CBSA_code[i]) %>%
+    filter(definition == "Google Earth") %>%
+    mutate(
+      # Update definition name
+      definition_lat = "Population center",
+      definition_lon = "Population center",
+      definition = "Population center",
+      # Update lat and lon values
+      lat = pop_weighted_center %>% pull(lat) %>% nth(1),
+      lon = pop_weighted_center %>% pull(lon) %>% nth(1)
+    )
+  
+  dta_complete <- bind_rows(dta_complete, pop_center_row)
+  
+}
 
+# readr::write_csv(dta_complete, here("data/city_centers_tidy.csv"))
 
 ```
 
 
-```{r}
-
-pal <- colorQuantile("YlOrRd", domain = place_dta$pop_density, n = 5)
-
-leaflet() %>%
-  addProviderTiles("OpenStreetMap") %>%  # nice clean basemap
-  addPolygons(
-    data = place_dta,
-    fillColor = ~pal(pop_density),
-    fillOpacity = 0.5,
-    color = "#d0d2ce",
-    stroke = NULL,
-    weight = 1,
-    popup = ~GEOID
-  )
-
-```
 
 ```{r}
 
-leaflet(data = pop_weighted_center) %>%
+dta_complete %>%
+  filter(PrincipleCity == "Dallas city") %>%
+  filter(definition == "Population center") %>%
+  leaflet() %>%
   addProviderTiles(providers$OpenStreetMap) %>%  # Similar to cartolight
   addCircleMarkers(
+    lng = ~lon,
+    lat = ~lat,
     radius = 6,
     color = "red",
     stroke = FALSE,
