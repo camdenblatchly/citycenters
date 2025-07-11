@@ -25,7 +25,6 @@ i_am("scripts/city_center_exploration.qmd")
 
 ```
 
-
 ```{r}
 
 dta_raw <- readxl::read_excel(
@@ -34,7 +33,6 @@ dta_raw <- readxl::read_excel(
 )
 
 ```
-
 
 ```{r}
 
@@ -72,7 +70,6 @@ dta_clean <- dta_raw %>%
   filter(definition != "Gazetteer")
 
 ```
-
 
 ## Let's prototype maps for Boston, NYC, etc
 
@@ -141,7 +138,6 @@ fig <- map_dta %>%
 save_plot(fig, here("export/nyc_map_demo.png"))
 
 ```
-
 
 ```{r}
 
@@ -212,8 +208,7 @@ save_plot(fig, here("export/LA_map_demo.png"))
 
 ## Calculate jobs and population centers using ACS
 
-Note: this could be pretty hard for all metros (because it will use blocks or
-block groups)
+Note: this could be pretty hard for all metros (because it will use blocks or block groups)
 
 Let's try for Boston
 
@@ -240,7 +235,6 @@ acs_raw <- tidycensus::get_acs(
 
 ```
 
-
 ```{r}
 
 boston_bg <- tigris::block_groups(
@@ -251,7 +245,6 @@ boston_bg <- tigris::block_groups(
 )
 
 ```
-
 
 ```{r}
 
@@ -276,7 +269,6 @@ boston_dta <- left_join(
   st_transform(crs = 4326) 
 
 ```
-
 
 ```{r}
 

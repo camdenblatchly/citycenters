@@ -16,9 +16,21 @@ library(ggspatial)
 library(leaflet)
 library(centr)
 
+source(here("scripts/utils.R"))
+
 i_am("scripts/build_full_city_center_dataset.qmd")
 
 ```
+
+##  This excel file comes from economist Matt Holian
+[Download here](https://mattholian.blogspot.com/2019/02/where-is-citys-center-on-recent-use-of.html)
+
+It contains City Center estimates by:
+- ArcGIS
+- Google Earth
+- City Hall
+- Central Business District
+- US Census Gazetteer
 
 ```{r}
 
@@ -32,6 +44,7 @@ dta_raw <- readxl::read_excel(
 ```{r}
 
 dta_clean <- dta_raw %>%
+  # Rename for string matching
   rename(arcgis_lon = arcgis_long) %>%
   pivot_longer(
     cols = ends_with("lat"),
@@ -87,26 +100,25 @@ top_us_cities <- dta_clean %>%
 ```
 
 
+## Building height data by block group
+[Download here](https://www.usgs.gov/data/us-national-categorical-mapping-building-heights-block-group-shuttle-radar-topography-mission)
+
 ```{r}
 
+# Read in NASA building heights data by block group
 building_heights_dta <- readr::read_csv(here("data/building_heights.csv"))
 
 ```
 
-
 ```{r}
 
-source(here("scripts/utils.R"))
-
+# Append building height and population definitions 
+# To the pre-existing data from Matt Holian
 dta_complete <- top_us_cities
 
 for (i in 1:nrow(top_us_cities_simple)) {
   
   print(paste("Calculating for", top_us_cities_simple$PrincipleCity[i]))
-  
-  if (i > 2) {
-    break
-  }
   
   pop_weighted_center <- get_pop_center(
     top_us_cities_simple$PrincipleCityStateFIPS[i],
@@ -114,7 +126,8 @@ for (i in 1:nrow(top_us_cities_simple)) {
   )
 
   pop_center_row <- dta_clean %>%
-    # Take an existing row and overwrite it
+    # Take an existing row and overwrite it with
+    # Population center estimate
     filter(CBSA_code == top_us_cities_simple$CBSA_code[i]) %>%
     filter(definition == "Google Earth") %>%
     mutate(
@@ -159,10 +172,12 @@ for (i in 1:nrow(top_us_cities_simple)) {
   
 }
 
-readr::write_csv(dta_complete, here("data/city_centers_tidy.csv"))
+readr::write_csv(dta_complete, here("data/city_centers_tidy_v01.csv"))
 
 ```
 
+
+## Useful Leaflet map for testing
 
 ```{r, eval=FALSE}
 
@@ -170,7 +185,7 @@ dta_complete %>%
   filter(PrincipleCity == "New York city") %>%
   filter(definition == "Population center") %>%
   leaflet() %>%
-  addProviderTiles(providers$OpenStreetMap) %>%  # Similar to cartolight
+  addProviderTiles(providers$OpenStreetMap) %>% 
   addCircleMarkers(
     lng = ~lon,
     lat = ~lat,

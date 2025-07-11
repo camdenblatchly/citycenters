@@ -1,9 +1,19 @@
+# Did not end up using this variable, but I considered short commute
+# as a possible definition
 acs_vars <- c(
   "short_commute" = "B08134_002"
 )
 
+
+#' Get the population center of a US city
+#'
+#' @param principle_geoid_st The state of the principle city
+#' @param geoid_pl The place GEOID for the city
+#'
+#' @return 1 row DF with lat and lon columns
 get_pop_center <- function(principle_geoid_st, geoid_pl) {
 
+  # Pull population by block group
   acs_raw <- tidycensus::get_acs(
     "block group",
     variables = acs_vars,
@@ -17,13 +27,16 @@ get_pop_center <- function(principle_geoid_st, geoid_pl) {
     short_commute_pop = estimate
   )
 
+  # Pull all block groups in the state
   state_bg <- tigris::block_groups(state = principle_geoid_st, cb = TRUE, year = 2019) %>%
     st_transform(crs = 5070)
 
+  # Pull the place geography
   place_geo <- tigris::places(state = principle_geoid_st) %>%
     filter(GEOID == geoid_pl) %>%
     st_transform(crs = 5070)
 
+  # Get just the block groups for the place
   place_bg <- state_bg %>%
     filter(st_intersects(., place_geo, sparse = FALSE) %>% apply(1, any)) %>%
     tigris::erase_water(year = 2019) %>%
@@ -31,6 +44,7 @@ get_pop_center <- function(principle_geoid_st, geoid_pl) {
       geometry = sf::st_make_valid(geometry)
     )
 
+  # Calculate population densities for the city, by block group
   place_dta <- left_join(
     place_bg,
     acs_raw,
@@ -56,7 +70,8 @@ get_pop_center <- function(principle_geoid_st, geoid_pl) {
     st_as_sf()
 
   pop_weighted_center <- place_dta %>%
-    # Get the top quintile of population dense block groups
+    # Get the top Quintile of population dense block groups
+    # Focus on urban cores
     filter(pop_density >= quantile(pop_density, .8, na.rm = TRUE)) %>%
     mean_center(
       group = c("variable"),
@@ -71,8 +86,17 @@ get_pop_center <- function(principle_geoid_st, geoid_pl) {
 
 }
 
+
+#' Get the building height center of a US city
+#'
+#' @param building_heights NASA dataset of building heights by Block group
+#' @param principle_geoid_st The state of the principle city
+#' @param geoid_pl The place GEOID for the city
+#'
+#' @return 1 row DF with lat and lon columns
 get_height_center <- function(building_heights, principle_geoid_st, geoid_pl) {
 
+  # Load in state block groups
   state_bg <- tigris::block_groups(state = principle_geoid_st, cb = TRUE, year = 2019) %>%
     st_transform(crs = 5070)
 
@@ -80,6 +104,7 @@ get_height_center <- function(building_heights, principle_geoid_st, geoid_pl) {
     filter(GEOID == geoid_pl) %>%
     st_transform(crs = 5070)
 
+  # Get all block groups for the place/city
   place_bg <- state_bg %>%
     filter(st_intersects(., place_geo, sparse = FALSE) %>% apply(1, any)) %>%
     filter(ALAND > 0) %>%
@@ -92,6 +117,8 @@ get_height_center <- function(building_heights, principle_geoid_st, geoid_pl) {
     pull(GEOID) %>%
     unique()
 
+  # Get the centroid of the block group with the tallest average
+  # building height
   tallest_bg <- building_heights %>%
     filter(geoid_bg %in% place_bg_geoids) %>%
     slice_max(order_by = SEPH, n = 1) %>%
