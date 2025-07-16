@@ -4,6 +4,11 @@ format: html
 editor: visual
 ---
 
+## About
+
+This is an exploratory quarto file I used to demo possible approaches 
+for calculating a city's center using ACS data.
+
 ```{r}
 
 library(dplyr)
@@ -204,7 +209,6 @@ fig <- map_dta %>%
 save_plot(fig, here("export/LA_map_demo.png"))
 
 ```
-
 
 ## Calculate jobs and population centers using ACS
 

@@ -4,6 +4,11 @@ format: html
 editor: visual
 ---
 
+## About
+
+This script calculates the population and building height city centers 
+for the 30 largest metro areas by population in the United States.
+
 ```{r}
 
 library(dplyr)
@@ -22,15 +27,11 @@ i_am("scripts/build_full_city_center_dataset.qmd")
 
 ```
 
-##  This excel file comes from economist Matt Holian
+## This excel file comes from economist Matt Holian
+
 [Download here](https://mattholian.blogspot.com/2019/02/where-is-citys-center-on-recent-use-of.html)
 
-It contains City Center estimates by:
-- ArcGIS
-- Google Earth
-- City Hall
-- Central Business District
-- US Census Gazetteer
+It contains City Center estimates by: - ArcGIS - Google Earth - City Hall - Central Business District - US Census Gazetteer
 
 ```{r}
 
@@ -99,8 +100,8 @@ top_us_cities <- dta_clean %>%
 
 ```
 
-
 ## Building height data by block group
+
 [Download here](https://www.usgs.gov/data/us-national-categorical-mapping-building-heights-block-group-shuttle-radar-topography-mission)
 
 ```{r}
@@ -175,7 +176,6 @@ for (i in 1:nrow(top_us_cities_simple)) {
 readr::write_csv(dta_complete, here("data/city_centers_tidy_v01.csv"))
 
 ```
-
 
 ## Useful Leaflet map for testing
 

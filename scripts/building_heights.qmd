@@ -4,6 +4,11 @@ format: html
 editor: visual
 ---
 
+## About
+
+This script converts the raw gdb file I downloaded from the USGS to a CSV 
+for easier processing
+
 ```{r}
 
 library(sf)
